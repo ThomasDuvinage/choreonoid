@@ -2,19 +2,21 @@ Source: choreonoid
 Priority: extra
 Maintainer: Fumio KANEHIRO <f-kanehiro@aist.go.jp>
 Build-Depends: debhelper (>= 9), cmake,
-	       doxygen, doxygen-latex, graphviz,
-	       pkg-kde-tools (>= 0.6),
-	       libboost-all-dev,
-	       libeigen3-dev,
-	       libz-dev,
-	       libjpeg-dev,
-	       libpng-dev,
+         doxygen, doxygen-latex, graphviz,
+         pkg-kde-tools (>= 0.6),
+         libboost-all-dev,
+         libeigen3-dev,
+         libz-dev,
+         libjpeg-dev,
+         libpng-dev,
          libglew-dev,
          libxfixes-dev,
-	       libyaml-dev,
-	       libqt4-opengl-dev,
-	       qt4-dev-tools,
-	       qt4-qtconfig,
+         libyaml-dev,
+         qt5-default,
+         libqt5svg5-dev,
+         libqt5x11extras5-dev,
+         libassimp-dev,
+         libpcl-dev,
          libode-dev,
          libomniorb4-dev,
          libcos4-dev,
@@ -27,7 +29,7 @@ Build-Depends: debhelper (>= 9), cmake,
          uuid-dev,
          openrtm-aist,
          openrtm-aist-dev,
-	       gettext
+         gettext
 Standards-Version: 3.9.4
 Section: science
 Homepage: http://choreonoid.org/
@@ -50,8 +52,8 @@ Description: Integrated robotics GUI environment - shared data
 Package: choreonoid
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
-	 libcnoid1 (= ${binary:Version}),
-	 choreonoid-data (= ${source:Version})
+   libcnoid1 (= ${binary:Version}),
+   choreonoid-data (= ${source:Version})
 Suggests: choreonoid-doc
 Multi-Arch: foreign
 Description: Integrated robotics GUI environment
@@ -76,15 +78,19 @@ Package: libcnoid-dev
 Architecture: any
 Section: libdevel
 Depends: libcnoid1 (= ${binary:Version}), ${misc:Depends},
-	 libboost-all-dev,
-	 libeigen3-dev,
-	 libz-dev,
-	 libjpeg-dev,
-	 libpng-dev,
+   libboost-all-dev,
+   libeigen3-dev,
+   libz-dev,
+   libjpeg-dev,
+   libpng-dev,
    libglew-dev,
-	 libyaml-dev,
-	 libqt4-opengl-dev,
-	 pkg-config
+   libyaml-dev,
+   qt5-default,
+   libqt5svg5-dev,
+   libqt5x11extras5-dev,
+   libassimp-dev,
+   libpcl-dev,
+   pkg-config
 Multi-Arch: same
 Description: Integrated robotics GUI environment - development files
  Choreonoid is an integrated robotics GUI environment, which allows
