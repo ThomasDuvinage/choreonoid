@@ -29,6 +29,7 @@ Build-Depends: debhelper (>= 9), cmake,
          uuid-dev,
          openrtm-aist,
          openrtm-aist-dev,
+         libfmt-dev,
          gettext
 Standards-Version: 3.9.4
 Section: science
