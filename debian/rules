@@ -16,15 +16,6 @@ CXXFLAGS+=$(CPPFLAGS)
 	override_dh_auto_configure	\
 	override_dh_auto_build-indep
 
-override_dh_auto_clean:
-	dh_auto_clean
-	rm -f Doxyfile				\
-	      src/Base/gettext.h 		\
-	      src/BodyPlugin/gettext.h 		\
-	      src/PoseSeqPlugin/gettext.h 	\
-	      src/Util/Config.h
-	rm -Rf html
-
 override_dh_auto_configure:
 	dh_auto_configure --				\
 		-DCMAKE_BUILD_TYPE=Release		\
@@ -56,14 +47,8 @@ override_dh_auto_configure:
 		-DBUILD_ROBOT_ACCESS_PLUGIN=ON		\
 		-DOPENRTM_DIR=/usr
 
-override_dh_auto_build-indep:
-	doxygen Doxyfile # Generate documentation.
-
 override_dh_auto_install:
 	dh_auto_install -- # Install files in prefix.
-	# Install IDL related headers
-	mkdir -p debian/libcnoid-dev/usr/include/choreonoid-1.6/cnoid
-	cp -r include/cnoid/corba debian/libcnoid-dev/usr/include/choreonoid-1.6/cnoid
 	# Install desktop file
 	mkdir -p debian/choreonoid/usr/share/applications/
 	install -m 644 ./debian/choreonoid.desktop \
