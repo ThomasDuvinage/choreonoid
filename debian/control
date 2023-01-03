@@ -39,7 +39,7 @@ Vcs-Git: git://anonscm.debian.org/debian-science/packages/choreonoid.git
 XS-Testsuite: autopkgtest
 
 Package: choreonoid-data
-Architecture: all
+Architecture: any
 Depends: ${misc:Depends}
 Multi-Arch: foreign
 Description: Integrated robotics GUI environment - shared data
@@ -102,7 +102,7 @@ Description: Integrated robotics GUI environment - development files
  plug-ins.
 
 Package: choreonoid-doc
-Architecture: all
+Architecture: any
 Section: doc
 Depends: ${misc:Depends}
 Multi-Arch: foreign
