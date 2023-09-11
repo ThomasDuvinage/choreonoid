@@ -1,3 +1,9 @@
+choreonoid (2.1.0-1debian1) unstable; urgency=medium
+
+  * Bump version to 2.1.0
+
+ -- Pierre Gergondet <pierre.gergondet+ppa@gmail.com>  Mon, 11 Sep 2023 10:59:38 +0900
+
 choreonoid (1.8.0-1debian1) unstable; urgency=medium
 
   * Bump to 1.8.0
