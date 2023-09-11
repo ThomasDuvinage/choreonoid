@@ -30,6 +30,7 @@ Build-Depends: debhelper (>= 9), cmake,
          openrtm-aist,
          openrtm-aist-dev,
          libfmt-dev,
+         libzip-dev,
          gettext
 Standards-Version: 3.9.4
 Section: science
@@ -92,6 +93,7 @@ Depends: libcnoid1 (= ${binary:Version}), ${misc:Depends},
    libassimp-dev,
    libpcl-dev,
    libfmt-dev,
+   libzip-dev,
    pkg-config
 Multi-Arch: same
 Description: Integrated robotics GUI environment - development files
