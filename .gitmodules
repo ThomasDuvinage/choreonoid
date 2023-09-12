@@ -1,6 +1,6 @@
-[submodule "ext/choreonoid-openrm"]
-	path = ext/choreonoid-openrm
-	url = https://github.com/arntanguy/choreonoid-openrtm
+[submodule "ext/choreonoid-openrtm"]
+	path = ext/choreonoid-openrtm
+	url = https://github.com/isri-aist/choreonoid-openrtm
 [submodule "ext/openhrp-plugin"]
 	path = ext/openhrp-plugin
 	url = https://github.com/isri-aist/openhrp-plugin
