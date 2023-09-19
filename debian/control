@@ -94,6 +94,7 @@ Depends: libcnoid1 (= ${binary:Version}), ${misc:Depends},
    libpcl-dev,
    libfmt-dev,
    libzip-dev,
+   python2.7-dev,
    pkg-config
 Multi-Arch: same
 Description: Integrated robotics GUI environment - development files
