@@ -25,6 +25,7 @@ set(sources
   RenderableItem.cpp
   RenderableItemUtil.cpp
   RenderableItemSceneStatistics.cpp
+  RenderableItemSceneExporter.cpp
   PolymorphicItemFunctionSet.cpp
   PutPropertyFunction.cpp
   RootItem.cpp
@@ -130,6 +131,10 @@ set(sources
   SceneItemFileIO.cpp
   SceneGeometryMeasurementTracker.cpp
   GeneralSceneFileImporterBase.cpp
+  GeneralSceneFileLoadDialog.cpp
+  CameraItem.cpp
+  CameraConfigDialog.cpp
+  LightingItem.cpp
   PointSetItem.cpp
   PointSetGeometryMeasurementTracker.cpp
   MultiPointSetItem.cpp
@@ -149,7 +154,6 @@ set(sources
   TaskView.cpp
   VirtualJoystickView.cpp
   MessageLogItem.cpp
-  LightingItem.cpp
   QtSvgUtil.cpp
   )
 
@@ -226,6 +230,7 @@ set(headers
   LocatableItem.h
   RenderableItem.h
   RenderableItemUtil.h
+  RenderableItemSceneExporter.h
   ImageableItem.h
   TargetItemPicker.h
   UnifiedEditHistory.h
@@ -285,6 +290,10 @@ set(headers
   SceneItem.h
   SceneItemFileIO.h
   GeneralSceneFileImporterBase.h
+  GeneralSceneFileLoadDialog.h
+  CameraItem.h
+  CameraConfigDialog.h
+  LightingItem.h
   PointSetItem.h
   MultiPointSetItem.h
   PositionTagGroupItem.h
@@ -302,7 +311,6 @@ set(headers
   TextEdit.h
   TaskView.h
   MessageLogItem.h
-  LightingItem.h
   QtEventUtil.h
   QVariantUtil.h
   QtSvgUtil.h
