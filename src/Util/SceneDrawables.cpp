@@ -1,6 +1,7 @@
 #include "SceneDrawables.h"
 #include "CloneMap.h"
 #include "SceneNodeClassRegistry.h"
+#include "Format.h"
 
 using namespace std;
 using namespace cnoid;
@@ -351,7 +352,7 @@ SgObject* SgMeshBase::childObject(int index)
 }
 
 
-void SgMeshBase::updateBoundingBox()
+void SgMeshBase::updateBoundingBox() const
 {
     if(!vertices_){
         bbox.clear();
@@ -362,6 +363,7 @@ void SgMeshBase::updateBoundingBox()
         }
         bbox = bboxf;
     }
+    setBoundingBoxCacheReady();
 }
 
 
@@ -379,11 +381,20 @@ SgVertexArray* SgMeshBase::setVertices(SgVertexArray* vertices)
 }
 
 
+SgVertexArray* SgMeshBase::getOrCreateVertices()
+{
+    if(!vertices_){
+        setVertices(new SgVertexArray);
+    }
+    return vertices_;
+}
+
+
 SgVertexArray* SgMeshBase::getOrCreateVertices(int size)
 {
     if(!vertices_){
         setVertices(new SgVertexArray(size));
-    } else if(size > 0){
+    } else {
         vertices_->resize(size);
     }
     return vertices_;
@@ -427,11 +438,20 @@ SgColorArray* SgMeshBase::setColors(SgColorArray* colors)
 }
 
 
+SgColorArray* SgMeshBase::getOrCreateColors()
+{
+    if(!colors_){
+        setColors(new SgColorArray);
+    }
+    return colors_;
+}
+
+
 SgColorArray* SgMeshBase::getOrCreateColors(int size)
 {
     if(!colors_){
         setColors(new SgColorArray(size));
-    } else if(size > 0){
+    } else {
         colors_->resize(size);
     }
     return colors_;
@@ -493,7 +513,7 @@ Referenced* SgMesh::doClone(CloneMap* cloneMap) const
 }
 
 
-void SgMesh::updateBoundingBox()
+void SgMesh::updateBoundingBox() const
 {
     if(!USE_FACES_FOR_BOUNDING_BOX_CALCULATION){
         SgMeshBase::updateBoundingBox();
@@ -509,6 +529,7 @@ void SgMesh::updateBoundingBox()
             }
             bbox = bboxf;
         }
+        setBoundingBoxCacheReady();
     }
 }
 
@@ -577,8 +598,60 @@ void SgMesh::rotate(const Matrix3f& R)
         }
     }
     setPrimitive(SgMesh::Mesh()); // clear the primitive information
-}    
-    
+}
+
+
+void SgMesh::putInformation(std::ostream& os)
+{
+    os << "vertices:\n";
+    if(!hasVertices()){
+        os << " empty\n";
+    } else {
+        int n = vertices_->size();
+        for(int i=0; i < n; ++i){
+            auto& v = vertices_->at(i);
+            os << formatC(" {0}: {1}, {2}, {3}\n", i, v.x(), v.y(), v.z());
+        }
+    }
+    os << "\n";
+
+    os << "triangles:\n";
+    if(!hasTriangles()){
+        os << " empty\n";
+    } else {
+        int n = numTriangles();
+        for(int i=0; i < n; ++i){
+            auto tri = triangle(i);
+            os << formatC(" {0}: {1}, {2}, {3}\n", i, tri[0], tri[1], tri[2]);
+        }
+    }
+    os << "\n";
+
+    os << "normals:\n";
+    if(!hasNormals()){
+        os << " empty\n";
+    } else {
+        int n = normals_->size();
+        for(int i=0; i < n; ++i){
+            auto& v = normals_->at(i);
+            os << formatC(" {0}: {1}, {2}, {3}\n", i, v.x(), v.y(), v.z());
+        }
+    }
+    os << "\n";
+
+    os << "normal indices:\n";
+    if(!hasNormalIndices()){
+        os << " empty\n";
+    } else {
+        int n = normalIndices_.size();
+        for(int i=0; i < n; ++i){
+            auto index = normalIndices_[i];
+            os << formatC(" {0}: {1}\n", i, index);
+        }
+    }
+    os << endl;
+}
+
 
 SgPolygonMesh::SgPolygonMesh()
 {
@@ -599,7 +672,7 @@ Referenced* SgPolygonMesh::doClone(CloneMap* cloneMap) const
 }
 
 
-void SgPolygonMesh::updateBoundingBox()
+void SgPolygonMesh::updateBoundingBox() const
 {
     if(!USE_FACES_FOR_BOUNDING_BOX_CALCULATION){
         SgMeshBase::updateBoundingBox();
@@ -617,6 +690,7 @@ void SgPolygonMesh::updateBoundingBox()
             }
             bbox = bboxf;
         }
+        setBoundingBoxCacheReady();
     }
 }
 
@@ -699,6 +773,7 @@ SgObject* SgShape::childObject(int index)
 
 const BoundingBox& SgShape::boundingBox() const
 {
+    setBoundingBoxCacheReady();
     if(mesh()){
         return mesh()->boundingBox();
     }
@@ -721,6 +796,7 @@ SgMesh* SgShape::setMesh(SgMesh* mesh)
     if(mesh){
         mesh->addParent(this);
     }
+    invalidateBoundingBox();
     return mesh;
 }
 
@@ -855,6 +931,9 @@ SgObject* SgPlot::childObject(int index)
 
 const BoundingBox& SgPlot::boundingBox() const
 {
+    if(!hasValidBoundingBoxCache()){
+        updateBoundingBox();
+    }
     return bbox;
 }
 
@@ -865,7 +944,7 @@ const BoundingBox& SgPlot::untransformedBoundingBox() const
 }
 
 
-void SgPlot::updateBoundingBox()
+void SgPlot::updateBoundingBox() const
 {
     if(!vertices_){
         bbox.clear();
@@ -876,6 +955,14 @@ void SgPlot::updateBoundingBox()
         }
         bbox = bboxf;
     }
+    setBoundingBoxCacheReady();
+}
+
+
+void SgPlot::setBoundingBox(const BoundingBox& bbox)
+{
+    this->bbox = bbox;
+    setBoundingBoxCacheReady();
 }
 
 
@@ -911,11 +998,20 @@ SgVertexArray* SgPlot::setVertices(SgVertexArray* vertices)
 }
 
 
+SgVertexArray* SgPlot::getOrCreateVertices()
+{
+    if(!vertices_){
+        setVertices(new SgVertexArray);
+    }
+    return vertices_;
+}
+
+
 SgVertexArray* SgPlot::getOrCreateVertices(int size)
 {
     if(!vertices_){
         setVertices(new SgVertexArray(size));
-    } else if(size > 0){
+    } else {
         vertices_->resize(size);
     }
     return vertices_;
@@ -958,11 +1054,20 @@ SgColorArray* SgPlot::setColors(SgColorArray* colors)
 }
 
 
+SgColorArray* SgPlot::getOrCreateColors()
+{
+    if(!colors_){
+        setColors(new SgColorArray);
+    }
+    return colors_;
+}
+
+
 SgColorArray* SgPlot::getOrCreateColors(int size)
 {
     if(!colors_){
         setColors(new SgColorArray(size));
-    } else if(size > 0){
+    } else {
         colors_->resize(size);
     }
     return colors_;
@@ -1044,6 +1149,35 @@ SgLineSet::SgLineSet(const SgLineSet& org, CloneMap* cloneMap)
 Referenced* SgLineSet::doClone(CloneMap* cloneMap) const
 {
     return new SgLineSet(*this, cloneMap);
+}
+
+
+void SgLineSet::putInformation(std::ostream& os)
+{
+    os << "vertices:\n";
+    if(!hasVertices()){
+        os << " empty\n";
+    } else {
+        int n = vertices_->size();
+        for(int i=0; i < n; ++i){
+            auto& v = vertices_->at(i);
+            os << formatC(" {0}: {1}, {2}, {3}\n", i, v.x(), v.y(), v.z());
+        }
+    }
+    os << "\n";
+
+    os << "lines:\n";
+    if(numLines() == 0){
+        os << " empty\n";
+    } else {
+        int n = numLines();
+        for(int i=0; i < n; ++i){
+            auto l = line(i);
+            os << formatC(" {0}: {1} - {2}\n", i, l[0], l[1]);
+        }
+    }
+    
+    os << endl;
 }
 
 

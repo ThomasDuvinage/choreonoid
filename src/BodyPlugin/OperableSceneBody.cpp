@@ -541,7 +541,7 @@ void OperableSceneBody::Impl::onSceneGraphConnection(bool on)
                 [this](){ onBodyItemUpdated(); }));
 
         connections.add(
-            bodyItem->sigContinuousKinematicUpdateStateChanged().connect(
+            bodyItem->sigContinuousUpdateStateChanged().connect(
                 [this](bool){ onBodyItemUpdated(); }));
 
         connections.add(
@@ -563,7 +563,7 @@ void OperableSceneBody::Impl::onSceneGraphConnection(bool on)
 
 void OperableSceneBody::Impl::onBodyItemUpdated()
 {
-    bool isUserInputBlocked = bodyItem->isDoingContinuousKinematicUpdate() || bodyItem->isLocationLocked();
+    bool isUserInputBlocked = bodyItem->isContinuousUpdateState() || bodyItem->isLocationLocked();
     if(isUserInputBlocked){
         if(sceneLinkForPositionDragger){
             detachPositionDragger();
@@ -1028,15 +1028,21 @@ OperableSceneBody::Impl::PointedType OperableSceneBody::Impl::findPointedObject(
 {
     PointedType pointedType = PT_NONE;
     pointedSceneLink = nullptr;
+
+    if(path.empty()){
+        return pointedType;
+    }
+    
     for(size_t i = path.size() - 1; i >= 1; --i){
         if(auto sceneLink = dynamic_cast<SceneLink*>(path[i].get())){
             auto sceneBody = sceneLink->sceneBody();
-            if(sceneBody == self){
-                pointedSceneLink = dynamic_cast<OperableSceneLink*>(sceneLink);
-            } else { // multiplex body
+            auto body = sceneBody->body();
+            if(body->isMultiplexBody() && !body->isMultiplexMainBody()){ // multiplex body
                 pointedSceneLink = operableSceneLink(sceneLink->link()->index());
                 bodyItem->exchangeWithMultiplexBody(sceneBody->body());
                 onKinematicStateChanged();
+            } else if(sceneBody == self){
+                pointedSceneLink = dynamic_cast<OperableSceneLink*>(sceneLink);
             }
         }
         if(pointedSceneLink){
@@ -1359,7 +1365,7 @@ bool OperableSceneBody::Impl::onButtonPressEvent(SceneWidgetEvent* event)
     PointedType pointedType = findPointedObject(event->nodePath());
 
     if(pointedType == PT_ZMP && event->button() == Qt::LeftButton){
-        if(!bodyItem->isDoingContinuousKinematicUpdate()){
+        if(!bodyItem->isContinuousUpdateState()){
             startZmpTranslation(event);
             return true;
         }
@@ -1408,7 +1414,7 @@ bool OperableSceneBody::Impl::onButtonPressEvent(SceneWidgetEvent* event)
         if(event->button() == Qt::LeftButton){
             updateMarkersAndManipulators(true);
 
-            if(!bodyItem->isDoingContinuousKinematicUpdate()){
+            if(!bodyItem->isContinuousUpdateState()){
                 if(operationType == LinkOperationType::FK){
                     startFK(event);
                 } else if(operationType == LinkOperationType::IK){
@@ -1551,6 +1557,8 @@ void OperableSceneBody::onPointerLeaveEvent(SceneWidgetEvent* event)
 
 void OperableSceneBody::Impl::onPointerLeaveEvent(SceneWidgetEvent* event)
 {
+    finishEditing();
+
     if(highlightedLink){
         highlightedLink->enableHighlight(false);
         highlightedLink = nullptr;
@@ -1636,6 +1644,8 @@ bool OperableSceneBody::onContextMenuRequest(SceneWidgetEvent* event)
 
 bool OperableSceneBody::Impl::onContextMenuRequest(SceneWidgetEvent* event)
 {
+    finishEditing();
+
     PointedType pointedType = findPointedObject(event->nodePath());
 
     if(pointedType != PT_SCENE_LINK){

@@ -106,7 +106,35 @@ struct EditableNodeInfo
     void clear(){ node.reset(); handler = nullptr; }
 };
 
-            
+
+template<class VectorType>
+class Interpolator
+{
+public:
+    double x0;
+    VectorType y0;
+    VectorType a;
+    VectorType b;
+
+    Interpolator(double x0, VectorType y0, double x1, VectorType y1)
+        : x0(x0), y0(y0)
+    {
+        double h = x1 - x0;
+        double h2 = h * h;
+        double h3 = h2 * h;
+        a = 2.0 * (y0 - y1) / h3;
+        b = 3.0 * (y1 - y0) / h2;
+    }
+
+    VectorType interpolate(double x) const
+    {
+        double h = x - x0;
+        double h2 = h * h;
+        double h3 = h2 * h;
+        return a * h3 + b * h2 + y0;
+    }
+};
+
 }
 
 namespace cnoid {
@@ -162,9 +190,8 @@ public:
     ScopedConnection modeSyncConnection;
     std::set<ReferencedPtr> editModeBlockRequesters;
 
-    Selection viewpointOperationMode;
-    bool isFirstPersonMode() const {
-        return (viewpointOperationMode.which() != ThirdPersonMode); }
+    int viewpointOperationMode;
+    bool isFirstPersonMode() const { return (viewpointOperationMode == FirstPersonMode); }
         
     enum DragMode { NO_DRAGGING, ABOUT_TO_EDIT, EDITING, VIEW_ROTATION, VIEW_TRANSLATION, VIEW_ZOOM } dragMode;
 
@@ -178,7 +205,6 @@ public:
     EditableArrayList tmpEditableArrays;
     EditableArrayList::iterator pCurrentTmpEditableArray;
     vector<EditableNodeInfo> pointedEditablePath;
-    EditableNodeInfo lastMouseMovedEditable;
     EditableNodeInfo focusedEditable;
     vector<EditableNodeInfo> focusedEditablePath;
 
@@ -202,6 +228,7 @@ public:
     int mousePressX;
     int mousePressY;
     QMouseEvent* lastMouseMoveEvent;
+    SceneWidgetEventHandler* lastMouseMoveHandler;
     NodeEventHandler customNodeEventHandler;
 
     SceneWidgetEventHandler* activeCustomModeHandler;
@@ -268,9 +295,14 @@ public:
     void renderFps();
 
     void onCurrentCameraChanged();
-    void setVisiblePolygonElements(int elementFlags);
     int visiblePolygonElements() const;
     void setCollisionLineVisibility(bool on);
+    void setVisiblePolygonElements(int elementFlags);
+    void setCameraPosition(const Vector3& position, double transitionTime);
+    void setCameraPositionLookingFor(
+        const Vector3& eye, const Vector3& direction, const Vector3& up, double transitionTime);
+    void setCameraPositionLookingAt(
+        const Vector3& eye, const Vector3& center, const Vector3& up, double transitionTime);
 
     void resetCursor();
     void setEditMode(bool on, bool doAdvertise);
@@ -278,7 +310,8 @@ public:
     void advertiseSceneModeChange(bool doModeSyncRequest);
     void advertiseSceneModeChangeInSubTree(SgNode* node);
     void activateCustomMode(SceneWidgetEventHandler* modeHandler, int modeId);
-    void viewAll();
+    void fitViewTo(const SgNodePath& path, double transitionTime);
+    void fitViewTo(const BoundingBox& bbox, double transitionTime);
 
     void showPickingImageWindow();
     void onUpsideDownToggled(bool on);
@@ -501,10 +534,7 @@ SceneWidget::Impl::Impl(SceneWidget* self)
     isEditMode = false;
     isHighlightingEnabled = false;
     isModeSyncEnabled = false;
-    viewpointOperationMode.resize(2);
-    viewpointOperationMode.setSymbol(ThirdPersonMode, "thirdPerson");
-    viewpointOperationMode.setSymbol(FirstPersonMode, "firstPerson");
-    viewpointOperationMode.select(ThirdPersonMode);
+    viewpointOperationMode = ThirdPersonMode;
     dragMode = NO_DRAGGING;
     defaultCursor = self->cursor();
     editModeCursor = QCursor(Qt::PointingHandCursor);
@@ -512,6 +542,7 @@ SceneWidget::Impl::Impl(SceneWidget* self)
     latestEvent.sceneWidget_ = self;
     lastClickedPoint.setZero();
     lastMouseMoveEvent = nullptr;
+    lastMouseMoveHandler = nullptr;
 
     activeCustomModeHandler = nullptr;
     activeCustomModeId = 0;
@@ -801,10 +832,10 @@ void SceneWidget::Impl::checkRemovedEditableNodes(SgNode* node)
 
         list<EditableNodeInfo> editablesToClearFocus;
         for(auto& editable : removedEditables){
-            if(editable == lastMouseMovedEditable){
+            if(editable.handler == lastMouseMoveHandler){
                 latestEvent.type_ = SceneWidgetEvent::PointerLeave;
-                lastMouseMovedEditable.handler->onPointerLeaveEvent(&latestEvent);
-                lastMouseMovedEditable.clear();
+                lastMouseMoveHandler->onPointerLeaveEvent(&latestEvent);
+                lastMouseMoveHandler = nullptr;
             }
             if(!focusedEditablePath.empty()){
                 auto iter = focusedEditablePath.begin();
@@ -818,7 +849,7 @@ void SceneWidget::Impl::checkRemovedEditableNodes(SgNode* node)
                     }
                 }
             }
-            if(focusedEditablePath.empty() && !lastMouseMovedEditable){
+            if(focusedEditablePath.empty() && !lastMouseMoveHandler){
                 break;
             }
         }
@@ -1038,6 +1069,12 @@ void SceneWidget::setCursor(const QCursor cursor)
 }
 
 
+void SceneWidget::setDefaultCursor()
+{
+    impl->setCursor(impl->defaultCursor);
+}
+
+
 void SceneWidget::Impl::resetCursor()
 {
     self->setCursor(isEditMode ? editModeCursor : defaultCursor);
@@ -1216,33 +1253,68 @@ Vector3 SceneWidget::lastClickedPoint() const
 
 void SceneWidget::setViewpointOperationMode(ViewpointOperationMode mode)
 {
-    impl->viewpointOperationMode.select(mode);
+    impl->viewpointOperationMode = mode;
     impl->emitSigStateChangedLater();
 }
 
 
 SceneWidget::ViewpointOperationMode SceneWidget::viewpointOperationMode() const
 {
-    return static_cast<ViewpointOperationMode>(impl->viewpointOperationMode.which());
+    return static_cast<ViewpointOperationMode>(impl->viewpointOperationMode);
 }
 
 
-void SceneWidget::viewAll()
+void SceneWidget::fitViewToAll(double transitionTime)
 {
-    impl->viewAll();
+    SgNodePath path = { impl->renderer->scene() };
+    impl->fitViewTo(path, transitionTime);
 }
 
 
-void SceneWidget::Impl::viewAll()
+void SceneWidget::viewAll(double transitionTime)
 {
-    if(!hasActiveInteractiveCamera()){
-        return;
-    }
-    
-    const BoundingBox& bbox = renderer->scene()->boundingBox();
+    fitViewToAll(transitionTime);
+}
+
+
+void SceneWidget::fitViewTo(const SgNodePath& path, double transitionTime)
+{
+    impl->fitViewTo(path, transitionTime);
+}
+
+
+void SceneWidget::Impl::fitViewTo(const SgNodePath& path, double transitionTime)
+{
+    BoundingBox bbox = path.back()->boundingBox();
     if(bbox.empty()){
         return;
     }
+    Affine3 T_node = Affine3::Identity();
+    for(auto it = path.rbegin(); it != path.rend(); ++it){
+        if(auto transform = (*it)->toTransformNode()){
+            T_node = transform->getTransform() * T_node;
+        }
+    }
+    if(!T_node.matrix().isApprox(Matrix4::Identity())){
+        bbox.transform(T_node);
+    }
+    
+    fitViewTo(bbox, transitionTime);
+}
+
+
+void SceneWidget::fitViewTo(const BoundingBox& bbox, double transitionTime)
+{
+    impl->fitViewTo(bbox, transitionTime);
+}
+
+
+void SceneWidget::Impl::fitViewTo(const BoundingBox& bbox, double transitionTime)
+{
+    if(!hasActiveInteractiveCamera() || bbox.empty()){
+        return;
+    }
+
     const double radius = bbox.boundingSphereRadius();
 
     double left, right, bottom, top;
@@ -1250,24 +1322,26 @@ void SceneWidget::Impl::viewAll()
 
     const double a = renderer->aspectRatio();
     double length = (a >= 1.0) ? (top - bottom) : (right - left);
-    
-    Isometry3& T = interactiveCameraTransform->T();
-    T.translation() +=
-        (bbox.center() - T.translation())
-        + T.rotation() * Vector3(0, 0, 2.0 * radius * builtinPersCamera->nearClipDistance() / length);
 
+    Isometry3 T_camera = interactiveCameraTransform->T();
+    double z = 2.0 * radius * builtinPersCamera->nearClipDistance() / length;
+    T_camera.translation() = bbox.center() + T_camera.rotation() * Vector3(0, 0, z);
 
-    if(auto ortho = dynamic_cast<SgOrthographicCamera*>(renderer->currentCamera())){
+    auto currentCamera = renderer->currentCamera();
+    if(currentCamera == builtinPersCamera){
+        setCameraPosition(T_camera.translation(), transitionTime);
+
+    } else if(auto ortho = dynamic_cast<SgOrthographicCamera*>(currentCamera)){
         if(a >= 1.0){
             ortho->setHeight(radius * 2.0);
         } else {
             ortho->setHeight(radius * 2.0 / a);
         }
+        interactiveCameraTransform->setTranslation(T_camera.translation());
         ortho->notifyUpdate(sgUpdate.withAction(SgUpdate::Modified));
-
-    } else {
-        interactiveCameraTransform->notifyUpdate(sgUpdate.withAction(SgUpdate::Modified));
     }
+
+    lastClickedPoint = bbox.center();
 }
 
 
@@ -1309,8 +1383,8 @@ void SceneWidget::Impl::updateLatestEvent(QKeyEvent* event)
 
 void SceneWidget::Impl::updateLatestEvent(int x, int y, int modifiers)
 {
-    latestEvent.x_ = x;
-    latestEvent.y_ = height() - y - 1;
+    latestEvent.x_ = lastDevicePixelRatio * x;
+    latestEvent.y_ = lastDevicePixelRatio * (height() - y - 1);
     latestEvent.modifiers_ = modifiers;
 }
 
@@ -1352,8 +1426,8 @@ void SceneWidget::Impl::updateLatestEventPath(bool forceFullPicking)
 
     makeCurrent();
 
-    int px = lastDevicePixelRatio * latestEvent.x();
-    int py = lastDevicePixelRatio * latestEvent.y();
+    int px = latestEvent.x();
+    int py = latestEvent.y();
 
     isRendering = true;
     bool picked = renderer->pick(px, py);
@@ -1506,20 +1580,25 @@ void SceneWidget::Impl::keyPressEvent(QKeyEvent* event)
     bool handled = false;
 
     if(isEditMode){
-        auto info = applyEditableFunction(
-            focusedEditablePath,
-            [&](SgNode* node, SceneWidgetEventHandler* handler){
-                bool handled = false;
-                if(customNodeEventHandler){
-                    handled = customNodeEventHandler(node, handler, &latestEvent);
-                }
-                if(!handled){
-                    handled = handler->onKeyPressEvent(&latestEvent);
-                }
-                return handled;
-            });
-        if(info){
-            handled = true;
+        if(activeCustomModeHandler){
+            handled = activeCustomModeHandler->onKeyPressEvent(&latestEvent);
+        }
+        if(!handled){
+            auto info = applyEditableFunction(
+                focusedEditablePath,
+                [&](SgNode* node, SceneWidgetEventHandler* handler){
+                    bool handled = false;
+                    if(customNodeEventHandler){
+                        handled = customNodeEventHandler(node, handler, &latestEvent);
+                    }
+                    if(!handled){
+                        handled = handler->onKeyPressEvent(&latestEvent);
+                    }
+                    return handled;
+                });
+            if(info){
+                handled = true;
+            }
         }
     }
 
@@ -1586,13 +1665,18 @@ void SceneWidget::Impl::keyReleaseEvent(QKeyEvent* event)
         handled = true;
         
     } else if(isEditMode){
-        if(focusedEditable){
-            if(customNodeEventHandler){
-                handled = customNodeEventHandler(
-                    focusedEditable.node, focusedEditable.handler, &latestEvent);
-            }
-            if(!handled){
-                handled = focusedEditable.handler->onKeyReleaseEvent(&latestEvent);
+        if(activeCustomModeHandler){
+            handled = activeCustomModeHandler->onKeyReleaseEvent(&latestEvent);
+        }
+        if(!handled){
+            if(focusedEditable){
+                if(customNodeEventHandler){
+                    handled = customNodeEventHandler(
+                        focusedEditable.node, focusedEditable.handler, &latestEvent);
+                }
+                if(!handled){
+                    handled = focusedEditable.handler->onKeyReleaseEvent(&latestEvent);
+                }
             }
         }
     }
@@ -1636,6 +1720,12 @@ void SceneWidget::Impl::mousePressEvent(QMouseEvent* event)
 
     if(!handled){
         if(event->button() == Qt::RightButton){
+            if(dragMode != NO_DRAGGING){
+                if(focusedEditable){
+                    focusedEditable.handler->onPointerLeaveEvent(&latestEvent);
+                }
+                dragMode = NO_DRAGGING;
+            }
             if(isEditMode){
                 showEditModePopupMenu(getGlobalPosition(event));
             } else {
@@ -1757,9 +1847,12 @@ void SceneWidget::Impl::mouseMoveEvent(QMouseEvent* event)
 
     if(!handled){
         updateLatestEventPath();
-        
+
+        SceneWidgetEventHandler* handler = nullptr;
+
         if(activeCustomModeHandler){
             handled = activeCustomModeHandler->onPointerMoveEvent(&latestEvent);
+            handler = activeCustomModeHandler;
         }
         if(!handled && isEditMode){
             auto mouseMovedEditable =
@@ -1784,17 +1877,19 @@ void SceneWidget::Impl::mouseMoveEvent(QMouseEvent* event)
                     QWidget::setFocus(Qt::MouseFocusReason);
                 }
                 */
+                handler = mouseMovedEditable.handler;
             }
-            if(lastMouseMovedEditable != mouseMovedEditable){
-                if(!mouseMovedEditable){
-                    resetCursor();
-                }
-                if(lastMouseMovedEditable){
-                    latestEvent.type_ = SceneWidgetEvent::PointerLeave;
-                    lastMouseMovedEditable.handler->onPointerLeaveEvent(&latestEvent);
-                }
-                lastMouseMovedEditable = mouseMovedEditable;
+        }
+
+        if(handler != lastMouseMoveHandler){
+            if(!handler){
+                resetCursor();
             }
+            if(lastMouseMoveHandler){
+                latestEvent.type_ = SceneWidgetEvent::PointerLeave;
+                lastMouseMoveHandler->onPointerLeaveEvent(&latestEvent);
+            }
+            lastMouseMoveHandler = handler;
         }
     }
 
@@ -1875,10 +1970,10 @@ void SceneWidget::Impl::findObjectNameFromChildren(SgObject* object, string& nam
 void SceneWidget::Impl::leaveEvent(QEvent* event)
 {
     latestEvent.type_ = SceneWidgetEvent::PointerLeave;
-    
-    if(lastMouseMovedEditable){
-        lastMouseMovedEditable.handler->onPointerLeaveEvent(&latestEvent);
-        lastMouseMovedEditable.clear();
+
+    if(lastMouseMoveHandler){
+        lastMouseMoveHandler->onPointerLeaveEvent(&latestEvent);
+        lastMouseMoveHandler = nullptr;
     }
     if(lastMouseMoveEvent){
         delete lastMouseMoveEvent;
@@ -1932,8 +2027,7 @@ void SceneWidget::Impl::wheelEvent(QWheelEvent* event)
 
 bool SceneWidget::unproject(double x, double y, double z, Vector3& out_projected) const
 {
-    const float r = impl->lastDevicePixelRatio;
-    return impl->renderer->unproject(r * x, r * y, z, out_projected);
+    return impl->renderer->unproject(x, y, z, out_projected);
 }
 
 
@@ -2040,10 +2134,10 @@ void SceneWidget::Impl::startViewRotation()
 
     if(isFirstPersonMode()){
         orgPointedPos = orgCameraPosition.translation();
-        dragAngleRatio = 0.01f;
+        dragAngleRatio = 0.01f / lastDevicePixelRatio;
     } else {
         orgPointedPos = lastClickedPoint;
-        dragAngleRatio = 0.01f;
+        dragAngleRatio = 0.01f / lastDevicePixelRatio;
     }
     
     dragMode = VIEW_ROTATION;
@@ -2121,8 +2215,8 @@ void SceneWidget::Impl::startViewTranslation()
     const Isometry3& C = interactiveCameraTransform->T();
 
     if(isFirstPersonMode()){
-        viewTranslationRatioX = -0.005;
-        viewTranslationRatioY = -0.005;
+        viewTranslationRatioX = -0.005 / lastDevicePixelRatio;
+        viewTranslationRatioY = -0.005 / lastDevicePixelRatio;
 
     } else {
         auto& vp = renderer->viewport();
@@ -2506,6 +2600,10 @@ void SceneWidget::Impl::setVisiblePolygonElements(int elementFlags)
         bool notified = false;
         polygonDrawStyle->setPolygonElements(elementFlags);
 
+        auto edgeColor = polygonDrawStyle->edgeColor();
+        edgeColor(3) = polygonDrawStyle->isFaceEnabled() ? 1.0 : 0.0;
+        polygonDrawStyle->setEdgeColor(edgeColor);
+
         if(!polygonDrawStyle->hasParents() && elementFlags != SgPolygonDrawStyle::Face){
             sceneRoot->removeChild(scene);
             polygonDrawStyle->addChild(scene);
@@ -2724,9 +2822,147 @@ void SceneWidget::setShowFPS(bool on)
 }
 
 
-void SceneWidget::setCameraPosition(const Vector3& eye, const Vector3& direction, const Vector3& up)
+void SceneWidget::setCameraPosition
+(const Vector3& eye, const Vector3& direction, const Vector3& up)
 {
-    impl->builtinCameraTransform->setPosition(SgCamera::positionLookingFor(eye, direction, up));
+    impl->setCameraPositionLookingFor(eye, direction, up, 0.0);
+}
+
+
+void SceneWidget::setCameraPosition(const Vector3& position, double transitionTime)
+{
+    impl->setCameraPosition(position, transitionTime);
+}
+
+
+void SceneWidget::Impl::setCameraPosition(const Vector3& position, double transitionTime)
+{
+    if(transitionTime > 0.0){
+        Vector3 p0 = builtinCameraTransform->translation();
+        Interpolator interp(0.0, p0, transitionTime, position);
+        QElapsedTimer timer;
+        timer.start();
+        while(true){
+            double time = timer.elapsed() / 1000.0;
+            if(time >= transitionTime){
+                break;
+            }
+            builtinCameraTransform->setTranslation(interp.interpolate(time));
+            repaint();
+            QCoreApplication::processEvents();
+        }
+    }
+    builtinCameraTransform->setTranslation(position);
+    builtinCameraTransform->notifyUpdate(sgUpdate.withAction(SgUpdate::Modified));
+}
+
+
+void SceneWidget::setCameraPositionLookingFor
+(const Vector3& eye, const Vector3& direction, const Vector3& up, double transitionTime)
+{
+    impl->setCameraPositionLookingFor(eye, direction, up, transitionTime);
+}
+
+
+void SceneWidget::Impl::setCameraPositionLookingFor
+(const Vector3& eye, const Vector3& direction, const Vector3& up, double transitionTime)
+{
+    if(transitionTime > 0.0){
+        typedef Eigen::Matrix<double, 6, 1> Vector6;
+
+        Vector6 pos0;
+        auto& T0 = builtinCameraTransform->T();
+        pos0.head<3>() = T0.translation(); // eye
+        pos0.tail<3>() = rpyFromRot(T0.linear()); // rpy
+
+        Vector6 pos1;
+        Vector3 rpy1 = rpyFromRot(SgCamera::positionLookingFor(eye, direction, up).linear());
+        pos1 << eye, rpy1;
+
+        Interpolator interp(0.0, pos0, transitionTime, pos1);
+        QElapsedTimer timer;
+        timer.start();
+
+        while(true){
+            double time = timer.elapsed() / 1000.0;
+            if(time >= transitionTime){
+                break;
+            }
+            Vector6 pos = interp.interpolate(time);
+            Isometry3 T;
+            T.translation() = pos.head<3>(); // eye
+            T.linear() = rotFromRpy(pos.tail<3>());
+            builtinCameraTransform->setPosition(T);
+            repaint();
+            QCoreApplication::processEvents();
+        }
+    }
+
+    builtinCameraTransform->setPosition(SgCamera::positionLookingFor(eye, direction, up));
+    builtinCameraTransform->notifyUpdate(sgUpdate.withAction(SgUpdate::Modified));
+}
+
+
+void SceneWidget::setCameraPositionLookingAt
+(const Vector3& eye, const Vector3& center, const Vector3& up, double transitionTime)
+{
+    impl->setCameraPositionLookingAt(eye, center, up, transitionTime);
+}
+
+
+void SceneWidget::Impl::setCameraPositionLookingAt
+(const Vector3& eye, const Vector3& center, const Vector3& up, double transitionTime)
+{
+    if(transitionTime > 0.0){
+        auto& T0 = builtinCameraTransform->T();
+        Vector3 d = SgCamera::direction(T0);
+        Vector3 eye0 = T0.translation();
+        double t = -(eye0 - center).dot(d);
+        Vector3 center0 = eye0 + t * d;
+        Vector3 up0 = SgCamera::up(T0);
+        Vector3 upRotationAxis = up0.cross(up).normalized();
+        if(upRotationAxis.isZero()){
+            for(int i=0; i < 2; ++i){
+                upRotationAxis = Vector3::Unit(i).cross(up).normalized();
+                if(!upRotationAxis.isZero()){
+                    break;
+                }
+            }
+        }
+        double theta = acos(up0.dot(up));
+
+        typedef Eigen::Matrix<double, 7, 1> Vector7;
+        Vector7 pos0;
+        pos0.head<3>() = eye0;
+        pos0.segment<3>(3) = center0;
+        pos0(6) = 0.0;
+
+        Vector7 pos1;
+        pos1 << eye, center, theta;
+
+        Interpolator interp(0.0, pos0, transitionTime, pos1);
+
+        QElapsedTimer timer;
+        timer.start();
+
+        while(true){
+            double time = timer.elapsed() / 1000.0;
+            if(time >= transitionTime){
+                break;
+            }
+            Vector7 pos = interp.interpolate(time);
+            Vector3 eye = pos.head<3>();
+            Vector3 center = pos.segment<3>(3);
+            double theta = pos(6);
+            Vector3 up = Vector3(AngleAxis(theta, upRotationAxis) * up0).normalized();
+            builtinCameraTransform->setPosition(SgCamera::positionLookingAt(eye, center, up));
+            repaint();
+            QCoreApplication::processEvents();
+        }
+    }
+
+    builtinCameraTransform->setPosition(SgCamera::positionLookingAt(eye, center, up));
+    builtinCameraTransform->notifyUpdate(sgUpdate.withAction(SgUpdate::Modified));
 }
 
 
@@ -2831,8 +3067,10 @@ bool SceneWidget::storeState(Archive& archive)
 
 bool SceneWidget::Impl::storeState(Archive& archive)
 {
-    archive.write("editMode", isEditMode);
-    archive.write("viewpointOperationMode", viewpointOperationMode.selectedSymbol());
+    archive.write("operation_mode", isEditMode ? "edit" : "view");
+    archive.write("viewpoint_operation_mode",
+                  viewpointOperationMode == FirstPersonMode ? "first_person" : "third_person");
+    write(archive, "focus_position", lastClickedPoint);
 
     auto vpeList = archive.createFlowStyleListing("visible_polygon_elements");
     int vpe = self->visiblePolygonElements();
@@ -2847,7 +3085,7 @@ bool SceneWidget::Impl::storeState(Archive& archive)
     }
 
     archive.write("highlighting", isHighlightingEnabled);
-    archive.write("collisionLines", collisionLineVisibility);
+    archive.write("collision_lines", collisionLineVisibility);
 
     ListingPtr cameraListing = new Listing;
     set<SgPosTransform*> storedTransforms;
@@ -2898,12 +3136,12 @@ Mapping* SceneWidget::Impl::storeCameraState
     writeCameraPath(*state, "camera", cameraIndex);
 
     if(cameraIndex == renderer->currentCameraIndex()){
-        state->write("isCurrent", true);
+        state->write("is_current", true);
     }
 
     if(isBuiltinCamera){
         if(auto ortho = dynamic_cast<SgOrthographicCamera*>(camera)){
-            state->write("orthoHeight", ortho->height());
+            state->write("ortho_height", ortho->height());
         }
         if(cameraTransform){
             auto& T = cameraTransform->T();
@@ -2925,13 +3163,23 @@ bool SceneWidget::restoreState(const Archive& archive)
 
 bool SceneWidget::Impl::restoreState(const Archive& archive)
 {
-    setEditMode(archive.get("editMode", isEditMode), false);
-    
     string symbol;
-    if(archive.read("viewpointOperationMode", symbol)){
-        self->setViewpointOperationMode(
-            ViewpointOperationMode(viewpointOperationMode.index(symbol)));
+
+    if(archive.read("operation_mode", symbol)){
+        setEditMode(symbol == "edit", false);
+    } else {
+        setEditMode(archive.get("editMode", isEditMode), false);
     }
+    
+    if(archive.read({"viewpoint_operation_mode", "viewpointOperationMode"}, symbol)){
+        if(symbol == "third_person" || symbol == "thirdPerson"){
+            self->setViewpointOperationMode(ThirdPersonMode);
+        } else if(symbol == "first_person" || symbol == "firstPerson"){
+            self->setViewpointOperationMode(FirstPersonMode);
+        }
+    }
+
+    read(archive, "focus_position", lastClickedPoint);
 
     auto& vpeList = *archive.findListing("visible_polygon_elements");
     if(vpeList.isValid()){
@@ -2952,7 +3200,7 @@ bool SceneWidget::Impl::restoreState(const Archive& archive)
     }
 
     archive.read("highlighting", isHighlightingEnabled);
-    setCollisionLineVisibility(archive.get("collisionLines", collisionLineVisibility));
+    setCollisionLineVisibility(archive.get({"collision_lines", "collisionLines"}, collisionLineVisibility));
     
     const Listing& cameraListing = *archive.findListing("cameras");
     if(cameraListing.isValid()){
@@ -3019,7 +3267,7 @@ bool SceneWidget::Impl::restoreCameraStates(const Listing& cameraListing, bool i
             SgCamera* camera = renderer->camera(cameraIndex);
             if(SgOrthographicCamera* ortho = dynamic_cast<SgOrthographicCamera*>(camera)){
                 double height;
-                if(state.read("orthoHeight", height)){
+                if(state.read({"ortho_height", "orthoHeight"}, height)){
                     ortho->setHeight(height);
                     updated = true;
                 }
@@ -3027,7 +3275,7 @@ bool SceneWidget::Impl::restoreCameraStates(const Listing& cameraListing, bool i
             if(updated){
                 camera->notifyUpdate(sgUpdate.withAction(SgUpdate::Modified));
             }
-            if(state.get("isCurrent", false)){
+            if(state.get({"is_current", "isCurrent"}, false)){
                 renderer->setCurrentCamera(cameraIndex);
                 restored = true;
                 if(isSecondTrial){

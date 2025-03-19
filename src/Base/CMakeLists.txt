@@ -5,6 +5,7 @@ set(sources
   MainMenu.cpp
   ProjectManager.cpp
   ProjectPacker.cpp
+  ProjectBackupManager.cpp
   PathVariableEditor.cpp
   PluginManager.cpp
   MainWindow.cpp
@@ -45,7 +46,6 @@ set(sources
   DisplayValueFormat.cpp
   PositionWidget.cpp
   LocationView.cpp
-  MultiSeqItemCreationPanel.cpp
   ToolBar.cpp
   TimeBar.cpp
   ScriptBar.cpp
@@ -217,6 +217,7 @@ set(headers
   OptionManager.h
   ProjectManager.h
   ProjectPacker.h
+  ProjectBackupManager.h
   PluginManager.h
   Plugin.h
   MessageView.h
@@ -240,7 +241,6 @@ set(headers
   DisplayValueFormat.h
   PositionWidget.h
   LocationView.h
-  MultiSeqItemCreationPanel.h
   PutPropertyFunction.h
   RootItem.h
   FolderItem.h

@@ -4,8 +4,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Choreonoid\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-08-29 12:03+0900\n"
+"POT-Creation-Date: 2024-12-30 22:09+0900\n"
 "PO-Revision-Date: 2021-10-25 12:00+0900\n"
 "Language: ja\n"
 "MIME-Version: 1.0\n"
@@ -601,9 +600,6 @@ msgstr "\"{1}\" のフレームレート {0} はシミュレーションのフ�
 msgid "Control mode"
 msgstr "制御モード"
 
-msgid "Number of joints"
-msgstr "関節数"
-
 msgid "BodyMotionItem"
 msgstr "ボディモーションアイテム"
 
@@ -773,72 +769,6 @@ msgstr "I/Oデバイス"
 
 msgid "{0} (No I/O)"
 msgstr "{0} (I/O無し)"
-
-msgid "GLVisionSimulatorItem"
-msgstr "GLビジョンシミュレータアイテム"
-
-msgid "Single"
-msgstr "単一"
-
-msgid "Sensor"
-msgstr "センサ"
-
-msgid "Screen"
-msgstr "スクリーン"
-
-msgid "{0} detected vision sensor \"{1}\" of {2} as a target.\n"
-msgstr "{0} は {2} の \"{1}\" を対象視覚センサとして検出しました．\n"
-
-msgid "{} has no target sensors"
-msgstr "{}は対象センサを有していません"
-
-msgid "{0}: Target sensor \"{1}\" cannot be initialized.\n"
-msgstr "{0}: 対象センサ \"{1}\" の初期化に失敗しました．\n"
-
-msgid "Target bodies"
-msgstr "対象ボディ"
-
-msgid "Target sensors"
-msgstr "対象センサ"
-
-msgid "Max frame rate"
-msgstr "最大フレームレート"
-
-msgid "Max latency [s]"
-msgstr "最大レイテンシ[秒]"
-
-msgid "Record vision data"
-msgstr "ビジョンデータの記録"
-
-msgid "Thread mode"
-msgstr "スレッドモード"
-
-msgid "Best effort"
-msgstr "ベストエフォート"
-
-msgid "All scene objects"
-msgstr "全てのシーンオブジェクト"
-
-msgid "Precision ratio of range sensors"
-msgstr "レンジセンサ精度係数"
-
-msgid "Depth error"
-msgstr "深度エラー"
-
-msgid "Background color"
-msgstr "背景色"
-
-msgid "Head light"
-msgstr "ヘッドライト"
-
-msgid "World light"
-msgstr "ワールドライト"
-
-msgid "Additional lights"
-msgstr "追加のライト"
-
-msgid "Anti-aliasing"
-msgstr "アンチエイリアシング"
 
 msgid "\"{}\" cannot be opened."
 msgstr "\"{}\" が開けません．"
@@ -1749,6 +1679,9 @@ msgstr "ワールドログファイルアイテム"
 msgid "World Log"
 msgstr "ワールドログ"
 
+msgid "Start Live Playback"
+msgstr "ライブ再生の開始"
+
 msgid "Save project as log playback archive"
 msgstr "ログ再生用アーカイブとしてプロジェクトを保存"
 
@@ -1772,6 +1705,12 @@ msgstr "タイムスタンプ接尾辞"
 
 msgid "Recording frame rate"
 msgstr "記録フレームレート"
+
+msgid "Live playback read interval (ms)"
+msgstr "ライブ再生読込時間間隔（ミリ秒）"
+
+msgid "Live playback read timeout"
+msgstr "ライブ再生読込タイムアウト"
 
 msgid "Save"
 msgstr "保存"

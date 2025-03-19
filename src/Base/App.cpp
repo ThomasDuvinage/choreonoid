@@ -10,6 +10,7 @@
 #include "MessageView.h"
 #include "RootItem.h"
 #include "ProjectManager.h"
+#include "ProjectBackupManager.h"
 #include "UnifiedEditHistory.h"
 #include "UnifiedEditHistoryView.h"
 #include "ItemEditRecordManager.h"
@@ -262,7 +263,7 @@ App::Impl::Impl(App* self, int& argc, char** argv, const std::string& appName, c
 #ifdef Q_OS_WIN32
     // Make a bundled Python available if it exists in the Choreonoid top directory.
     std::smatch match;
-    for(auto& dir : filesystem::directory_iterator(executableTopDirPath())){
+    for(auto& dir : stdx::filesystem::directory_iterator(executableTopDirPath())){
         static std::regex re("^Python\\d+$");
         string dirString = dir.path().filename().string();
         if(regex_match(dirString, match, re)){
@@ -387,6 +388,7 @@ void App::Impl::initialize()
     
     ItemManager::initializeClass(ext);
     ProjectManager::initializeClass(ext);
+    ProjectBackupManager::initializeClass();
     RootItem::initializeClass(ext);
     UnifiedEditHistory::initializeClass(ext);
     UnifiedEditHistoryView::initializeClass(ext);
@@ -497,9 +499,9 @@ App::~App()
 
 App::Impl::~Impl()
 {
-    AppConfig::flush();
     delete qapplication;
     delete pluginManager;
+    AppConfig::flush();
 }
 
 
@@ -588,6 +590,7 @@ int App::Impl::exec()
     RootItem::instance()->clearChildren();
     
     pluginManager->finalizePlugins();
+    ext->deleteManagedObjects();
     delete mainWindow;
     mainWindow = nullptr;
 

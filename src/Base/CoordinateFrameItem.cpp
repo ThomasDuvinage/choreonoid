@@ -21,8 +21,7 @@ public:
 
     FrameLocation(CoordinateFrameItem::Impl* impl);
     void updateLocationType();
-    virtual Item* getCorrespondingItem() override;
-    virtual LocationProxyPtr getParentLocationProxy() const override;
+    virtual LocationProxyPtr getParentLocationProxy() override;
     virtual std::string getName() const override;
     virtual Isometry3 getLocation() const override;
     virtual bool isLocked() const override;
@@ -49,6 +48,7 @@ public:
     bool isChangingCheckStatePassively;
     
     Impl(CoordinateFrameItem* self, CoordinateFrame* frame);
+    bool setName(const std::string& name);
     void onFrameUpdated(int flags);
     bool resetFrameId(const GeneralId& id);
     void onCheckToggled(bool on);
@@ -91,8 +91,8 @@ CoordinateFrameItem::Impl::Impl(CoordinateFrameItem* self, CoordinateFrame* fram
     : self(self),
       frame(frame)
 {
-    self->setName(frame->id().label());
-    
+    setName(frame->id().label());
+
     frameListItem = nullptr;
     frameList = nullptr;
 
@@ -116,6 +116,47 @@ CoordinateFrameItem::~CoordinateFrameItem()
 Item* CoordinateFrameItem::doCloneItem(CloneMap* cloneMap) const
 {
     return new CoordinateFrameItem(*this, cloneMap);
+}
+
+
+bool CoordinateFrameItem::setName(const std::string& name)
+{
+    return impl->setName(name);
+}
+
+
+bool CoordinateFrameItem::Impl::setName(const std::string& name)
+{
+    bool doSetName = false;
+    auto& id = frame->id();
+    if(id.isInt()){
+        try {
+            int newId = std::stoi(name);
+            if(newId >= 0){
+                if(newId == id.toInt()){
+                    doSetName = true;
+                } else {
+                    auto block = frameConnection.scopedBlock();
+                    doSetName = frame->resetId(newId);
+                }
+            }
+        } catch(...){
+
+        }
+    } else if(id.isString()){
+        if(!name.empty()){
+            if(name == id.toString()){
+                doSetName = true;
+            } else {
+                auto block = frameConnection.scopedBlock();
+                doSetName = frame->resetId(name);
+            }
+        }
+    }
+    if(doSetName){
+        return self->Item::setName(name);
+    }
+    return false;
 }
 
 
@@ -378,11 +419,10 @@ void CoordinateFrameItem::setLocationLocked(bool on)
 
 
 FrameLocation::FrameLocation(CoordinateFrameItem::Impl* impl)
-    : LocationProxy(InvalidLocation),
+    : LocationProxy(impl->self, InvalidLocation),
       impl(impl)
 {
-    impl->self->sigNameChanged().connect(
-        [&](const std::string& /* oldName */){ notifyAttributeChange(); });
+    setNameDependencyOnItemName();
 }
 
 
@@ -410,13 +450,7 @@ void FrameLocation::updateLocationType()
 }
 
 
-Item* FrameLocation::getCorrespondingItem()
-{
-    return impl->self;
-}
-
-
-LocationProxyPtr FrameLocation::getParentLocationProxy() const
+LocationProxyPtr FrameLocation::getParentLocationProxy()
 {
     if(impl->frame->isLocal()){
         if(impl->frameListItem){

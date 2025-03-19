@@ -164,7 +164,6 @@ protected:
     SgObject(const SgObject& org);
     virtual Referenced* doClone(CloneMap* cloneMap) const override;
     void notifyUpperNodesOfUpdate(SgUpdate& update);
-    void notifyUpperNodesOfUpdate(SgUpdate& update, bool doInvalidateBoundingBox);
             
 private:
     unsigned short attributes_;
@@ -316,8 +315,9 @@ public:
     iterator removeChild(iterator childIter, SgUpdateRef update = nullptr);
     bool removeChild(SgNode* node, SgUpdateRef update = nullptr);
     void removeChildAt(int index, SgUpdateRef update = nullptr);
+    void removeChildrenAfter(int index, SgUpdateRef update = nullptr);
     void clearChildren(SgUpdateRef update = nullptr);
-    void copyChildrenTo(SgGroup* group, SgUpdateRef update = nullptr);
+    void copyChildrenTo(SgGroup* group, SgUpdateRef update = nullptr) const;
     void moveChildrenTo(SgGroup* group, SgUpdateRef update = nullptr);
 
     [[deprecated("Use insertChild(int index, SgNode* node, SgUpdateRef update)")]]
@@ -346,6 +346,8 @@ public:
         return nullptr;
     }
 
+    std::vector<SgNodePath> findPathsTo(SgNode* node) const;
+
 protected:
     SgGroup(int classId);
     virtual Referenced* doClone(CloneMap* cloneMap) const override;
@@ -353,6 +355,7 @@ protected:
 
 private:
     Container children;
+    void findPathsTo(std::vector<SgNodePath>& paths, SgNodePath& path, const SgNode* topNode) const;
     static void throwTypeMismatchError();
 };
 
@@ -383,6 +386,8 @@ class CNOID_EXPORT SgTransform : public SgGroup
 public:
     virtual void getTransform(Affine3& out_T) const = 0;
     virtual const BoundingBox& untransformedBoundingBox() const override;
+
+    Affine3 getTransform() { Affine3 T; getTransform(T); return T; }
     
 protected:
     SgTransform(int classId);
@@ -634,6 +639,19 @@ protected:
 };
 
 typedef ref_ptr<SgUnpickableGroup> SgUnpickableGroupPtr;
+
+
+class CNOID_EXPORT SgPickableInvisibleGroup : public SgGroup
+{
+public:
+    SgPickableInvisibleGroup();
+    SgPickableInvisibleGroup(const SgPickableInvisibleGroup& org, CloneMap* cloneMap = nullptr);
+
+protected:
+    virtual Referenced* doClone(CloneMap* cloneMap) const override;
+};
+
+typedef ref_ptr<SgPickableInvisibleGroup> SgPickableInvisibleGroupPtr;
 
 
 class CNOID_EXPORT SgPreprocessed : public SgNode

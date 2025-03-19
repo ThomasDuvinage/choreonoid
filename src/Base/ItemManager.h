@@ -23,6 +23,15 @@ public:
     ItemCreationPanel();
     virtual bool initializeCreation(Item* protoItem, Item* parentItem) = 0;
     virtual bool updateItem(Item* protoItem, Item* parentItem) = 0;
+
+protected:
+    void initializePanelWithNameEntry();
+    void initializeNameEntryForCreation(Item* protoItem);
+    bool updateItemWithNameEntry(Item* protoItem);
+
+private:
+    // This is actually a QLineEdit widget and is created by initializePanelWithNameEntry.
+    QWidget* nameEntry;
 };
 
 template<class ItemType>
@@ -44,7 +53,6 @@ private:
 
 class CNOID_EXPORT DefaultItemCreationPanel : public ItemCreationPanel
 {
-    QWidget* nameEntry;
 public:
     DefaultItemCreationPanel();
     virtual bool initializeCreation(Item* protoItem, Item* parentItem) override;
@@ -139,8 +147,12 @@ public:
         return static_cast<ItemType*>(getPrototypeInstance_(typeid(ItemType)));
     }
 
-    template <class ItemType> ItemManager& addCreationPanel(ItemCreationPanel* panel = nullptr) {
-        addCreationPanel_(typeid(ItemType), panel);
+    template <class ItemType> ItemManager& addCreationPanel(ItemCreationPanel* panel, bool isVisibleInMainMenu = true) {
+        addCreationPanel_(typeid(ItemType), panel, isVisibleInMainMenu);
+        return *this;
+    }
+    template <class ItemType> ItemManager& addCreationPanel(bool isVisibleInMainMenu = true) {
+        addCreationPanel_(typeid(ItemType), nullptr, isVisibleInMainMenu);
         return *this;
     }
 
@@ -248,7 +260,7 @@ private:
         const std::string& className, const std::type_info& type, const std::type_info& superType,
         std::function<Item*()> factory, Item* singletonInstance);
     void addAlias_(const std::type_info& type, const std::string& className, const std::string& moduleName);
-    void addCreationPanel_(const std::type_info& type, ItemCreationPanel* panel);
+    void addCreationPanel_(const std::type_info& type, ItemCreationPanel* panel, bool isVisibleInMainMenu);
     static Item* getPrototypeInstance_(const std::type_info& type);
 
     void registerFileIO_(const std::type_info& type, ItemFileIO* fileIO);
@@ -269,12 +281,15 @@ private:
     // The following static functions are called from functions in the Item class
     static bool loadItem(
         Item* item, const std::string& filename, Item* parentItem, const std::string& format,
-        const Mapping* options = nullptr);
+        const Mapping* options = nullptr, MessageOut* mout = nullptr);
     static bool saveItem(
-        Item* item, const std::string& filename, const std::string& format, const Mapping* options = nullptr);
+        Item* item, const std::string& filename, const std::string& format,
+        const Mapping* options = nullptr, MessageOut* mout = nullptr);
     static bool saveItemWithDialog(Item* item, const std::string& format = std::string(), bool doCheckFileImmutable = true);
     
-    static bool overwriteItem(Item* item, bool forceOverwrite, const std::string& format, bool doSaveItemWithDialog = false);
+    static bool overwriteItem(
+        Item* item, bool forceOverwrite, const std::string& format, bool doSaveItemWithDialog = false,
+        time_t cutoffTime = 0, MessageOut* mout = nullptr);
     static bool overwriteItemOrSaveItemWithDialog(Item* item, bool forceOverwrite, const std::string& format){
         return overwriteItem(item, forceOverwrite, format, true);
     }

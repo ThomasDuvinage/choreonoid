@@ -38,8 +38,11 @@ BodyMotionEngineCore::BodyMotionEngineCore(BodyItem* bodyItem)
 void BodyMotionEngineCore::updateBodyState(double time, const BodyState& state)
 {
     if(auto bodyItem_ = bodyItemRef.lock()){
-        bool needFk = updateBodyState_(time, bodyItem_->body(), state);
-        bodyItem_->notifyKinematicStateChange(needFk);
+        auto body = bodyItem_->body();
+        if(updateBodyState_(time, body, state)){
+            calcForwardKinematics(body, false);
+        }
+        bodyItem_->notifyKinematicStateChange();
     }
 }
 
@@ -50,7 +53,17 @@ bool BodyMotionEngineCore::updateBodyState_(double time, Body* body, const BodyS
 
     // Main body
     auto stateBlock = state.firstBlock();
-    if(updateSingleBodyState(time, body, stateBlock, true)){
+    if(stateBlock.empty()){
+        if(body->existence()){
+            body->setExistence(false);
+        }
+        return false;
+    }
+
+    if(!body->existence()){
+        body->setExistence(true);
+    }
+    if(updateSingleBodyState(time, body, stateBlock)){
         needFk = true;
     }
 
@@ -62,7 +75,7 @@ bool BodyMotionEngineCore::updateBodyState_(double time, Body* body, const BodyS
         Body* multiplexBody = body;
         while(stateBlock){
             multiplexBody = multiplexBody->getOrCreateNextMultiplexBody();
-            updateSingleBodyState(time, multiplexBody, stateBlock, false);
+            updateSingleBodyState(time, multiplexBody, stateBlock);
             stateBlock = state.nextBlockOf(stateBlock);
         }
         multiplexBody->clearMultiplexBodies();
@@ -72,7 +85,7 @@ bool BodyMotionEngineCore::updateBodyState_(double time, Body* body, const BodyS
 }
 
 
-bool BodyMotionEngineCore::updateSingleBodyState(double time, Body* body, BodyStateBlock bodyStateBlock, bool isMainBody)
+bool BodyMotionEngineCore::updateSingleBodyState(double time, Body* body, BodyStateBlock bodyStateBlock)
 {
     bool needFk = false;
 
@@ -80,24 +93,15 @@ bool BodyMotionEngineCore::updateSingleBodyState(double time, Body* body, BodySt
     int numLinkPositions = bodyStateBlock.numLinkPositions();
     int numDeviceStates = bodyStateBlock.numDeviceStates();
 
-    if(numLinkPositions == 0 && numDeviceStates == 0){
-        if(body->existence() && isMainBody){
-            body->setExistence(false);
-        }
-    } else {
-        if(!body->existence() && isMainBody){
-            body->setExistence(true);
-        }
-        int numLinks = std::min(numAllLinks, numLinkPositions);
-        for(int i=0; i < numLinks; ++i){
-            auto link = body->link(i);
-            auto linkPosition = bodyStateBlock.linkPosition(i);
-            link->setTranslation(linkPosition.translation());
-            link->setRotation(linkPosition.rotation());
-        }
-        if(numLinks < numAllLinks){
-            needFk = true;
-        }
+    int numLinks = std::min(numAllLinks, numLinkPositions);
+    for(int i=0; i < numLinks; ++i){
+        auto link = body->link(i);
+        auto linkPosition = bodyStateBlock.linkPosition(i);
+        link->setTranslation(linkPosition.translation());
+        link->setRotation(linkPosition.rotation());
+    }
+    if(numLinks < numAllLinks){
+        needFk = true;
     }
 
     int numAllJoints = body->numAllJoints();
@@ -155,6 +159,14 @@ void BodyMotionEngineCore::updateBodyVelocity(Body* body, const BodyState& prevS
     }
     while(jointIndex < numAllJoints){
         body->joint(jointIndex)->dq() = 0.0;
+    }
+}
+
+
+void BodyMotionEngineCore::calcForwardKinematics(Body* mainBody, bool doUpdateVelocities)
+{
+    for(auto& body : mainBody->multiplexBodies()){
+        body->calcForwardKinematics(doUpdateVelocities);
     }
 }
 
@@ -263,7 +275,7 @@ bool BodyMotionEngine::onTimeChanged(double time)
         }
                 
         if(needFk){
-            body->calcForwardKinematics(doUpdateVelocities);
+            core.calcForwardKinematics(body, doUpdateVelocities);
         }
 
         if(body->numMultiplexBodies() != prevNumMultiplexBodies){

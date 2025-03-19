@@ -10,7 +10,7 @@ using namespace cnoid;
 
 namespace {
 
-SceneEffectDeviceTypeRegistration<SmokeDevice, SceneSmoke> snowDeviceRegistration("SmokeDevice");;
+SceneEffectDeviceTypeRegistration<SmokeDevice, SceneSmoke> smokeDeviceRegistration("SmokeDevice");;
 
 }
 
@@ -95,11 +95,11 @@ void SmokeDevice::on(bool on)
 
 int SmokeDevice::stateSize() const
 {
-    return 11;
+    return 14;
 }
 
 
-const double* SmokeDevice::readState(const double* buf)
+const double* SmokeDevice::readState(const double* buf, int size)
 {
     int i = 0;
     auto& ps = particleSystem_;
@@ -114,7 +114,10 @@ const double* SmokeDevice::readState(const double* buf)
     ps.setEmissionRange(buf[i++]);
     ps.setAcceleration(Vector3f(buf[i], buf[i+1], buf[i+2]));
     i += 3;
-    
+    if(size >= 14){
+        ps.setTintColor(Vector3f(buf[i], buf[i+1], buf[i+2]));
+        i += 3;
+    }
     return buf + i;
 }
 
@@ -135,6 +138,9 @@ double* SmokeDevice::writeState(double* out_buf) const
     out_buf[i++] = ps.acceleration()[0];
     out_buf[i++] = ps.acceleration()[1];
     out_buf[i++] = ps.acceleration()[2];
+    out_buf[i++] = ps.tintColor()[0];
+    out_buf[i++] = ps.tintColor()[1];
+    out_buf[i++] = ps.tintColor()[2];
 
     return out_buf + i;
 }

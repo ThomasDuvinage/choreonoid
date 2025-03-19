@@ -1,8 +1,3 @@
-/*!
-  @file
-  @author Shin'ichiro Nakaoka
-*/
-
 #include "SensorVisualizerItem.h"
 #include "BodyItem.h"
 #include <cnoid/ItemManager>
@@ -408,7 +403,9 @@ void SensorVisualizerItem::Impl::addSensorVisualizerItem(Body* body)
         }
         if(item->bodyItem != bodyItem){
             item->setBodyItem(bodyItem);
-            self->addSubItem(item);
+            if(item->parentItem() != self){
+                self->addSubItem(item);
+            }
         }
     }
 }
@@ -432,7 +429,9 @@ void SensorVisualizerItem::Impl::addVisionSensorVisualizerItem(Body* body)
         }
         if(item->bodyItem != bodyItem){
             item->setBodyItem(bodyItem, sensor);
-            self->addSubItem(item);
+            if(item->parentItem() != self){
+                self->addSubItem(item);
+            }
         }
     }
 }
@@ -771,13 +770,11 @@ SignalProxy<void()> CameraImageVisualizerItem::sigImageUpdated()
 
 void CameraImageVisualizerItem::setBodyItem(BodyItem* bodyItem, Camera* camera)
 {
-    if(name().empty()){
-        string name = camera->name();
-        if(dynamic_cast<RangeCamera*>(camera)){
-            name += "-Image";
-        }
-        setName(name);
+    string cameraName = camera->name();
+    if(dynamic_cast<RangeCamera*>(camera)){
+        cameraName += "-Image";
     }
+    setName(cameraName);
 
     this->camera = camera;
 
@@ -825,11 +822,8 @@ Item* PointCloudVisualizerItem::doCloneItem(CloneMap* /* cloneMap */) const
 
 void PointCloudVisualizerItem::setBodyItem(BodyItem* bodyItem, RangeCamera* rangeCamera)
 {
-    if(name().empty()){
-        setName(rangeCamera->name());
-    }
+    setName(rangeCamera->name());
     this->rangeCamera = rangeCamera;
-    
     SubSensorVisualizerItem::setBodyItem(bodyItem);
 }
 
@@ -917,11 +911,8 @@ RangeSensorVisualizerItem::RangeSensorVisualizerItem()
 
 void RangeSensorVisualizerItem::setBodyItem(BodyItem* bodyItem, RangeSensor* rangeSensor)
 {
-    if(name().empty()){
-        setName(rangeSensor->name());
-    }
+    setName(rangeSensor->name());
     this->rangeSensor = rangeSensor;
-
     SubSensorVisualizerItem::setBodyItem(bodyItem);
 }
 
@@ -978,42 +969,39 @@ void RangeSensorVisualizerItem::updateRangeSensorState()
 {
     auto pointSet_ = pointSet();
 
-    const RangeSensor::RangeData& src = rangeSensor->constRangeData();
-    const int numPoints = src.size();
+    const RangeSensor::RangeData& rangeData = rangeSensor->constRangeData();
     SgVertexArray& points = *pointSet_->getOrCreateVertices();
     points.clear();
+    if(rangeData.empty()){
+        return;
+    }
+    points.reserve(rangeData.size());
 
-    if(!src.empty()){
-        points.reserve(numPoints);
-        const int numPitchSamples = rangeSensor->numPitchSamples();
-        const double pitchStep = rangeSensor->pitchStep();
-        const int numYawSamples = rangeSensor->numYawSamples();
-        const double yawStep = rangeSensor->yawStep();
-        Matrix3f Ro;
-        bool hasRo= !rangeSensor->opticalFrameRotation().isIdentity();
-        if(hasRo){
-            Ro = rangeSensor->opticalFrameRotation().cast<float>();
-        }
-        for(int pitch=0; pitch < numPitchSamples; ++pitch){
-            const double pitchAngle = pitch * pitchStep - rangeSensor->pitchRange() / 2.0;
-            const double cosPitchAngle = cos(pitchAngle);
-            const int srctop = pitch * numYawSamples;
-            
-            for(int yaw=0; yaw < numYawSamples; ++yaw){
-                const double distance = src[srctop + yaw];
-                if(distance <= rangeSensor->maxDistance()){
-                    double yawAngle = yaw * yawStep - rangeSensor->yawRange() / 2.0;
-                    float x = distance *  cosPitchAngle * sin(-yawAngle);
-                    float y  = distance * sin(pitchAngle);
-                    float z  = -distance * cosPitchAngle * cos(yawAngle);
-                    if(hasRo){
-                        points.emplace_back(Ro * Vector3f(x, y, z));
-                    } else {
-                        points.emplace_back(x, y, z);
-                    }
-                }
+    Matrix3 Ro;
+    const bool hasRo= !rangeSensor->opticalFrameRotation().isIdentity();
+    if(hasRo){
+        Ro = rangeSensor->opticalFrameRotation();
+    }
+    double maxDistance = rangeSensor->maxDistance();
+
+    for(int i=0; i < rangeData.size(); ++i){
+        double distance = rangeData[i];
+        if(distance <= maxDistance){
+            Vector2 angles = rangeSensor->getSphericalAngle(i);
+            double yawAngle = angles[0];
+            double pitchAngle = angles[1];
+            double cosPitch = std::cos(pitchAngle);
+            double x = distance *  cosPitch * std::sin(-yawAngle);
+            double y = distance * std::sin(pitchAngle);
+            double z = -distance * cosPitch * std::cos(yawAngle);
+            if(hasRo){
+                Vector3 p = Ro * Vector3(x, y, z);
+                points.emplace_back(p.x(), p.y(), p.z());
+            } else {
+                points.emplace_back(x, y, z);
             }
         }
     }
+
     pointSet_->notifyUpdate(update.withAction(SgUpdate::Modified));
 }

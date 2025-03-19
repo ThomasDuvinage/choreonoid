@@ -253,8 +253,14 @@ public:
     virtual int numChildObjects() const override;
     virtual SgObject* childObject(int index) override;
 
-    const BoundingBox& boundingBox() const { return bbox; }
-    virtual void updateBoundingBox();
+    const BoundingBox& boundingBox() const {
+        if(!hasValidBoundingBoxCache()){
+            updateBoundingBox();
+        }
+        return bbox;
+    }
+    
+    virtual void updateBoundingBox() const;
     void setBoundingBox(const BoundingBox& bb){ bbox = bb; };
     void setBoundingBox(const BoundingBoxf& bb){ bbox = bb; };
 
@@ -262,7 +268,8 @@ public:
     SgVertexArray* vertices() { return vertices_; }
     const SgVertexArray* vertices() const { return vertices_; }
     SgVertexArray* setVertices(SgVertexArray* vertices);
-    SgVertexArray* getOrCreateVertices(int size = 0);
+    SgVertexArray* getOrCreateVertices();
+    SgVertexArray* getOrCreateVertices(int size);
         
     bool hasNormals() const { return (normals_ && !normals_->empty()); }
     SgNormalArray* normals() { return normals_; }
@@ -274,7 +281,8 @@ public:
     SgColorArray* colors() { return colors_; }
     const SgColorArray* colors() const { return colors_; }
     SgColorArray* setColors(SgColorArray* colors);
-    SgColorArray* getOrCreateColors(int size = 0);
+    SgColorArray* getOrCreateColors();
+    SgColorArray* getOrCreateColors(int size);
 
     bool hasTexCoords() const { return (texCoords_ && !texCoords_->empty()); }
     SgTexCoordArray* texCoords() { return texCoords_; }
@@ -307,7 +315,7 @@ public:
     void setSolid(bool on) { isSolid_ = on; }
 
 protected:
-    BoundingBox bbox;
+    mutable BoundingBox bbox;
     SgVertexArrayPtr vertices_;
     SgIndexArray faceVertexIndices_;
     SgNormalArrayPtr normals_;
@@ -329,7 +337,7 @@ public:
     SgMesh();
     SgMesh(const SgMesh& org, CloneMap* cloneMap = nullptr);
 
-    virtual void updateBoundingBox() override;
+    virtual void updateBoundingBox() const override;
 
     /**
        Triangle indices (triangles variable) should be CCW.
@@ -479,6 +487,9 @@ public:
     void translate(const Vector3f& translation);
     void rotate(const Matrix3f& R);
 
+    // For debug
+    void putInformation(std::ostream& os);
+
 protected:
     virtual Referenced* doClone(CloneMap* cloneMap) const override;
 
@@ -496,7 +507,7 @@ public:
     SgPolygonMesh();
     SgPolygonMesh(const SgPolygonMesh& org, CloneMap* cloneMap = nullptr);
 
-    virtual void updateBoundingBox() override;
+    virtual void updateBoundingBox() const override;
     
     /**
        The array of vertex indices corresponding to polygons.
@@ -567,7 +578,8 @@ public:
 
     virtual const BoundingBox& boundingBox() const override;
     virtual const BoundingBox& untransformedBoundingBox() const override;
-    void updateBoundingBox();
+    void updateBoundingBox() const;
+    void setBoundingBox(const BoundingBox& bbox);
 
     void clear();
 
@@ -575,7 +587,8 @@ public:
     SgVertexArray* vertices() { return vertices_; }
     const SgVertexArray* vertices() const { return vertices_; }
     SgVertexArray* setVertices(SgVertexArray* vertices);
-    SgVertexArray* getOrCreateVertices(int size = 0);
+    SgVertexArray* getOrCreateVertices();
+    SgVertexArray* getOrCreateVertices(int size);
         
     SgMaterial* material() { return material_; }
     const SgMaterial* material() const { return material_; }
@@ -586,7 +599,8 @@ public:
     SgColorArray* colors() { return colors_; }
     const SgColorArray* colors() const { return colors_; }
     SgColorArray* setColors(SgColorArray* colors);
-    SgColorArray* getOrCreateColors(int size = 0);
+    SgColorArray* getOrCreateColors();
+    SgColorArray* getOrCreateColors(int size);
 
     const SgIndexArray& colorIndices() const { return colorIndices_; }
     SgIndexArray& colorIndices() { return colorIndices_; }
@@ -606,8 +620,8 @@ public:
     const SgIndexArray& normalIndices() const { return normalIndices_; }
     SgIndexArray& normalIndices() { return normalIndices_; }
 
-private:
-    BoundingBox bbox;
+protected:
+    mutable BoundingBox bbox;
     SgVertexArrayPtr vertices_;
     SgMaterialPtr material_;
     SgColorArrayPtr colors_;
@@ -703,6 +717,9 @@ public:
        The default value of this is zero and the current system value is used then.
     */
     float lineWidth() const { return lineWidth_; }
+
+    // For debug
+    void putInformation(std::ostream& os);
 
 protected:
     SgLineSet(int classId);
