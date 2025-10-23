@@ -10,7 +10,7 @@ jobs:
   package:
     uses: jrl-umi3218/github-actions/.github/workflows/package-project.yml@master
     with:
-      main-branch: release-2.2
+      main-branch: debian
       update-stable-and-head: true
       with-openrtm2: true
       deps: '["jrl-umi3218/mc_openrtm"]'
