@@ -1,0 +1,12 @@
+[submodule "ext/choreonoid-openrtm"]
+	path = ext/choreonoid-openrtm
+	url = https://github.com/isri-aist/choreonoid-openrtm
+[submodule "ext/openhrp-plugin"]
+	path = ext/openhrp-plugin
+	url = https://github.com/isri-aist/openhrp-plugin
+[submodule "ext/grxui-plugin"]
+	path = ext/grxui-plugin
+	url = https://github.com/isri-aist/grxui-plugin
+[submodule "ext/robot-access-plugin"]
+	path = ext/robot-access-plugin
+	url = https://github.com/choreonoid/robot-access-plugin

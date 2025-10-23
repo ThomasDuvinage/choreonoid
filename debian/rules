@@ -1,0 +1,52 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Hardening.
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all,-pie,+fortify
+
+CPPFLAGS:=$(shell dpkg-buildflags --get CPPFLAGS)
+CFLAGS:=$(shell dpkg-buildflags --get CFLAGS)
+CXXFLAGS:=$(shell dpkg-buildflags --get CXXFLAGS)
+LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS) -Wl,--as-needed
+
+CFLAGS+=$(CPPFLAGS)
+CXXFLAGS+=$(CPPFLAGS)
+
+.PHONY: override_dh_auto_clean		\
+	override_dh_auto_configure	\
+	override_dh_auto_build-indep
+
+override_dh_auto_configure:
+	dh_auto_configure --				\
+		-DCMAKE_BUILD_TYPE=Release		\
+		-DCMAKE_CXX_STANDARD=17		\
+		-DINSTALL_SDK:BOOL=TRUE			\
+		-DINSTALL_DEPENDENCIES:BOOL=TRUE	\
+		-DCNOID_ENABLE_GETTEXT:BOOL=TRUE	\
+		-DUSE_EXTERNAL_EIGEN:BOOL=TRUE		\
+		-DUSE_EXTERNAL_YAML:BOOL=TRUE		\
+		-DENABLE_CORBA:BOOL=TRUE		\
+		-DBUILD_CORBA_PLUGIN:BOOL=TRUE		\
+		-DBUILD_OPENRTM_PLUGIN:BOOL=TRUE	\
+		-DBUILD_GROBOT_PLUGIN:BOOL=TRUE		\
+		-DBUILD_ASSIMP_PLUGIN:BOOL=TRUE	\
+		-DBUILD_PYTHON_PLUGIN:BOOL=TRUE		\
+		-DUSE_BUILTIN_CAMERA_IMAGE_IDL=ON		\
+		-DBUILD_PCL_PLUGIN=ON		\
+		-DBUILD_OPENHRP_PLUGIN=ON		\
+		-DBUILD_GRXUI_PLUGIN=ON		\
+		-DUSE_PYBIND11=ON		\
+		-DUSE_PYTHON3=OFF		\
+		-DBUILD_BALANCER_PLUGIN=OFF		\
+		-DENABLE_PYTHON=ON		\
+		-DBUILD_BOOST_PYTHON_MODULES=OFF		\
+		-DUSE_EXTERNAL_PYBIND11=ON		\
+		-DBUILD_PYTHON_PLUGIN=ON		\
+		-DBUILD_PYTHON_SIM_SCRIPT_PLUGIN=ON		\
+		-DBUILD_HRPSYS31_PLUGIN=ON		\
+		-DBUILD_ROBOT_ACCESS_PLUGIN=ON		\
+		-DBUILD_DOCUMENTS=ON		\
+		-DOPENRTM_DIR=/usr
+
+%:
+	dh  $@ --parallel --with pkgkde-symbolshelper
