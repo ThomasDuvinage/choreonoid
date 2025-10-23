@@ -9,4 +9,4 @@
 	url = https://github.com/isri-aist/grxui-plugin
 [submodule "ext/robot-access-plugin"]
 	path = ext/robot-access-plugin
-	url = https://github.com/choreonoid/robot-access-plugin
+	url = https://github.com/ThomasDuvinage/robot-access-plugin
