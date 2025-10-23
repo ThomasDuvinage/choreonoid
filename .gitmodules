@@ -1,7 +1,7 @@
 [submodule "ext/choreonoid-openrtm"]
 	path = ext/choreonoid-openrtm
 	url = https://github.com/fkanehiro/choreonoid-openrtm
-	branch = origin/ubuntu2204+rtm2
+	branch = ubuntu2204+rtm2
 [submodule "ext/openhrp-plugin"]
 	path = ext/openhrp-plugin
 	url = https://github.com/isri-aist/openhrp-plugin
